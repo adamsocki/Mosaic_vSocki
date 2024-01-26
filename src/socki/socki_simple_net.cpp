@@ -9,20 +9,6 @@ const uint16 ServerPort = 30000;
 // @NOTE TO STUDENTS: look up the hash function in the engine!
 const int32 PacketID = Hash("CubeNet");
 
-
-struct Player 
-{
-    vec2 position;
-    vec2 velocity;
-
-    vec4 color; 
-
-    Rect rect;
-
-};
-
-
-
 struct ClientInfo {
     uint32 address;
     uint16 port;
@@ -38,20 +24,12 @@ struct ServerData {
 struct ClientData {
     real32 lastPingTimeFromServer;
     bool connected;
-
-    bool isReady;
 };
 
-struct MyCubeGameData {
-
-    bool isReady;
-
-
+struct MyData {
     ServerData serverData;
 
     ClientData clientData;
-
-
 };
 
 // Client mode and a Server mode
@@ -59,22 +37,14 @@ struct MyCubeGameData {
 // The server is going to listen for pings and then send pings to all the clients
 // The client knows the servers address, but the server doesnt know who the client is yet
 
-MyCubeGameData *GameData = NULL;
-bool debugMode = true;
+MyData Data = {};
 
 void MyInit() {
     NetworkInfo *network = &Game->networkInfo;
 
     InitNetwork(&Game->permanentArena);
-     
-    Game->myData = malloc(sizeof(MyCubeGameData));
-    GameData = (MyCubeGameData*)Game->myData;
-    memset(GameData, 0, sizeof(MyCubeGameData));
 
     // Create sockets that we'll use to communicate.
-    Game->myData = {}; 
-
-
 
     // This means that this code is being executed by server.exe
     if (IS_SERVER) {
@@ -89,12 +59,9 @@ void MyInit() {
 }
 
 void ClientUpdate() {
-
-    // LOGIC
-
     NetworkInfo *network = &Game->networkInfo;
 
-    ClientData *client = &GameData->clientData;
+    ClientData *client = &Data.clientData;
 
     GamePacket packet = {};
     packet.id = PacketID;
@@ -125,56 +92,26 @@ void ClientUpdate() {
         client->connected = true;
     }
 
+    if (client->connected) {
+        DrawTextScreen(&Game->serifFont, V2(0.5f, 0.1f), 0.02f, V4(1), true, "CONNECTED TO SERVER!");
+    }
+    else {
+        DrawTextScreen(&Game->serifFont, V2(0.5f, 0.1f), 0.02f, V4(1, 0, 0, 1), true, "NO CONNECTION...");        
+    }
+    
     real32 timeSincePing = Game->time - client->lastPingTimeFromServer;
 
     if (timeSincePing > 1.0f) {
         client->connected = false;
     }
-
-    // HANDLE INPUT
-
-    if (InputPressed(Keyboard, Input_Return))
-    {
-        client->isReady = true;
-    }
-
-
-
-
-
-    //RENDER 
-
-    if (!client->isReady)
-    {
-        DrawTextScreen(&Game->serifFont, V2(0.5f, 0.85f), 0.02f, V4(0.0f, 0.98f, 0.2f, 1.0f), true, "Press ENTER to Spawn into World!");
-
-    }
     
-
-    if (debugMode)
-    {
-        if (client->connected ) {
-            DrawTextScreen(&Game->serifFont, V2(0.5f, 0.1f), 0.02f, V4(1), true, "CONNECTED TO SERVER!");
-        }
-        else {
-            DrawTextScreen(&Game->serifFont, V2(0.5f, 0.1f), 0.02f, V4(1, 0, 0, 1), true, "NO CONNECTION...");        
-        }
-
-        DrawTextScreen(&Game->serifFont, V2(0.5f, 0.2f), 0.02f, V4(1, 0, 0, 1), true, "Last Ping Time %.2f", timeSincePing);
-
-
-    }
-    
-    
-    
-   
-    
+    DrawTextScreen(&Game->serifFont, V2(0.5f, 0.2f), 0.02f, V4(1, 0, 0, 1), true, "Last Ping Time %.2f", timeSincePing);
 }
 
 void ServerUpdate() {
     NetworkInfo *network = &Game->networkInfo;
     
-    ServerData *server = &GameData->serverData; 
+    ServerData *server = &Data.serverData; 
 
     server->clients = (ClientInfo*)malloc(1 * sizeof(ClientInfo));
     
