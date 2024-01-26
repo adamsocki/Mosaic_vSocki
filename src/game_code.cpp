@@ -1,6 +1,8 @@
 
-#define MOSAIC 1
-#define MY_GAME 1
+#define MOSAIC 0
+#define MY_GAME 0
+
+#define SOCKI 1
 
 #define NETWORK_SIMPLE 0
 #define MESSAGING 1
@@ -30,8 +32,14 @@
 #elif MY_GAME
 #include "my_game.cpp"
 
+#elif SOCKI
+#include "socki.cpp"
+
+
 #elif NETWORK_SIMPLE
 #include "examples/network_simple.cpp"
+
+
 
 #elif MESSAGING
 #include "examples/messaging_example.cpp"
