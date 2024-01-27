@@ -21,6 +21,14 @@ struct Player
 
 };
 
+struct World
+{
+    vec2 position;
+    vec4 color;
+
+    Rect rect;
+};
+
 
 
 struct ClientInfo {
@@ -40,11 +48,15 @@ struct ClientData {
     bool connected;
 
     bool isReady;
+
+    bool receivedWorld;
+
 };
 
-struct MyCubeGameData {
+struct MyCubeGameData
+{
 
-    bool isReady;
+    World gameWorld;
 
 
     ServerData serverData;
@@ -62,6 +74,20 @@ struct MyCubeGameData {
 MyCubeGameData *GameData = NULL;
 bool debugMode = true;
 
+void InitServer()
+{
+    // @TODO:create world
+
+    GameData->gameWorld.position =  V2(0.4f, 0.5f);
+    GameData->gameWorld.color =     V4(0.3f, 0.4f, 0.4f, 1.0);
+    GameData->gameWorld.rect.min =  V2(-0.1f, -0.1f);
+    GameData->gameWorld.rect.max =  V2( 0.1f,  0.1f);
+
+}
+
+
+
+
 void MyInit() {
     NetworkInfo *network = &Game->networkInfo;
 
@@ -74,10 +100,11 @@ void MyInit() {
     // Create sockets that we'll use to communicate.
     Game->myData = {}; 
 
-
-
     // This means that this code is being executed by server.exe
-    if (IS_SERVER) {
+    if (IS_SERVER) 
+    {
+        InitServer();
+
         InitSocket(&network->socket, GetMyAddress(), ServerPort, true);
     }
     else {
@@ -94,12 +121,34 @@ void ClientUpdate() {
 
     NetworkInfo *network = &Game->networkInfo;
 
+    for (int i = 0; i < network->packetsReceived.count; i++)
+    {
+        ReceivedPacket *received = &network->packetsReceived[i];
+
+        if (received->packet.id != PacketID)
+        {
+            continue;
+        }
+    }
+
     ClientData *client = &GameData->clientData;
 
     GamePacket packet = {};
     packet.id = PacketID;
     packet.type = GamePacketType_Ping;
     packet.frame = Game->frame;
+
+    // INPUT LISTEN FOR ENTER TO SPAWN INTO GAME
+
+    
+    if (InputPressed(Keyboard, Input_Return))
+    {
+        client->isReady = true;
+        packet.data[0] = client->isReady;
+    }
+
+
+
 
     // If you dont know what memcpy is, you need to look it up ASAP
     memcpy(packet.data, &Game->time, sizeof(real32));
@@ -109,6 +158,22 @@ void ClientUpdate() {
     // over in one pass.
     PushBack(&network->packetsToSend, packet);
     
+
+
+  if (client->connected && !client->receivedWorld && client->isReady)
+    {
+        // request world  
+        GamePacket packet = {}; 
+        packet.id = PacketID;
+        packet.type = GamePacketType_World;
+
+        //packet.data[0] = client-> @@@@ what would go
+
+        PushBack(&network->packetsToSend, packet);
+
+    }
+
+
 
     // Here we send the packets where we want to.
     for (int i = 0; i < network->packetsToSend.count; i++) {
@@ -131,12 +196,11 @@ void ClientUpdate() {
         client->connected = false;
     }
 
+
+
+
     // HANDLE INPUT
 
-    if (InputPressed(Keyboard, Input_Return))
-    {
-        client->isReady = true;
-    }
 
 
 
@@ -147,8 +211,14 @@ void ClientUpdate() {
     if (!client->isReady)
     {
         DrawTextScreen(&Game->serifFont, V2(0.5f, 0.85f), 0.02f, V4(0.0f, 0.98f, 0.2f, 1.0f), true, "Press ENTER to Spawn into World!");
-
     }
+    else if (!client->receivedWorld)
+    {
+        DrawTextScreen(&Game->serifFont, V2(0.5f, 0.85f), 0.02f, V4(0.8f, 0.1f, 0.2f, 1.0f), true, "World being generated...");
+    }
+
+
+
     
 
     if (debugMode)
@@ -223,7 +293,7 @@ void ServerUpdate() {
         foundClient->lastPingTime = *((real32 *)p->data);
     }
 
-    
+
     if (server->clients[0].address != 0) {
         GamePacket packet = {};
         packet.id = PacketID;

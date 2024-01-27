@@ -23,6 +23,8 @@ enum GamePacketType {
      GamePacketType_Username,
 
      GamePacketType_Pong,
+
+     GamePacketType_World,
 };
 
 // @NOTE: this is the specification for the packet that gets sent and received.
