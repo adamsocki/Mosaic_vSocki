@@ -21,7 +21,7 @@ struct ServerData {
     ClientInfo clients[2];
 };
 
-struct ClientData {
+struct PlayerData {
     real32 lastPingTimeFromServer;
     bool connected;
 };
@@ -29,7 +29,7 @@ struct ClientData {
 struct MyData {
     ServerData serverData;
 
-    ClientData clientData;
+    PlayerData clientData;
 };
 
 // Client mode and a Server mode
@@ -61,7 +61,7 @@ void MyInit() {
 void ClientUpdate() {
     NetworkInfo *network = &Game->networkInfo;
 
-    ClientData *client = &Data.clientData;
+    PlayerData *client = &Data.clientData;
 
     GamePacket packet = {};
     packet.id = PacketID;
