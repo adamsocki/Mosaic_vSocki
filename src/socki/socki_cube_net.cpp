@@ -35,12 +35,13 @@ struct ClientInfo {
     uint32 address;
     uint16 port;
 
-    real32 lastPingTime;
+    real32 lastPingTimeFromServer;
 };
 
-struct ServerData {
+struct ServerData 
+{
     // @NOTE: we could have a buffer of these if we wanted multiple clients.
-    ClientInfo *clients;
+    DynamicArray<ClientInfo> clients;
 };
 
 struct ClientData {
@@ -72,20 +73,30 @@ struct MyCubeGameData
 // The client knows the servers address, but the server doesnt know who the client is yet
 
 MyCubeGameData *GameData = NULL;
+
 bool debugMode = true;
 
 void InitServer()
-{
+{ 
+    // GameData->serverData = {};
     // @TODO:create world
+    GameData->serverData.clients = MakeDynamicArray<ClientInfo>(&Game->permanentArena, 128);
+   //GameData->serverData.clients = (ClientInfo*)malloc(numberOfClientsAllowed * sizeof(ClientInfo));
 
-    GameData->gameWorld.position =  V2(0.4f, 0.5f);
-    GameData->gameWorld.color =     V4(0.3f, 0.4f, 0.4f, 1.0);
-    GameData->gameWorld.rect.min =  V2(-0.1f, -0.1f);
-    GameData->gameWorld.rect.max =  V2( 0.1f,  0.1f);
+    //GameData->serverData.clients
+    Print("M");
+    //GameData.gameWorld.position =  V2(0.4f, 0.5f);
+    //GameData.gameWorld.color =     V4(0.3f, 0.4f, 0.4f, 1.0);
+    //GameData.gameWorld.rect.max =  V2( 0.1f,  0.1f);
+    //GameData.gameWorld.rect.min =  V2(-0.1f, -0.1f);
 
+    //memset(GameData->serverData.clients, 0, sizeof(ClientInfo) * 4);
 }
 
+void InitClient()
+{
 
+}
 
 
 void MyInit() {
@@ -93,12 +104,23 @@ void MyInit() {
 
     InitNetwork(&Game->permanentArena);
      
+    //Game->myData = malloc(sizeof(MyCubeGameData));
+    //GameData = (MyCubeGameData*)Game->myData;
+    //memset(GameData, 0, sizeof(MyCubeGameData) * 1);
+
+
+    //GameData = {};
+    //ServerData* server = &GameData.serverData;
+    //``sserver->clients = {};
+    
+
+
+    // Create sockets that we'll use to communicate.
     Game->myData = malloc(sizeof(MyCubeGameData));
     GameData = (MyCubeGameData*)Game->myData;
     memset(GameData, 0, sizeof(MyCubeGameData));
 
-    // Create sockets that we'll use to communicate.
-    Game->myData = {}; 
+
 
     // This means that this code is being executed by server.exe
     if (IS_SERVER) 
@@ -111,6 +133,7 @@ void MyInit() {
         // If we don't care what port we're on we can pass in 0 and it'll pick one
         // for us. This can be useful for doing networking locally where we want
         // to have multiple game instances open and have the server communicate with each.
+        InitClient();
         InitSocket(&network->socket, GetMyAddress(), 0, true);
     }
 }
@@ -121,6 +144,9 @@ void ClientUpdate() {
 
     NetworkInfo *network = &Game->networkInfo;
 
+    Print("Received: %d", network->packetsReceived.count);
+
+
     for (int i = 0; i < network->packetsReceived.count; i++)
     {
         ReceivedPacket *received = &network->packetsReceived[i];
@@ -129,6 +155,10 @@ void ClientUpdate() {
         {
             continue;
         }
+        Print("Received: %d", network->packetsReceived.count);
+
+
+        
     }
 
     ClientData *client = &GameData->clientData;
@@ -144,7 +174,7 @@ void ClientUpdate() {
     if (InputPressed(Keyboard, Input_Return))
     {
         client->isReady = true;
-        packet.data[0] = client->isReady;
+       // packet.data[0] = client->isReady;
     }
 
 
@@ -158,9 +188,7 @@ void ClientUpdate() {
     // over in one pass.
     PushBack(&network->packetsToSend, packet);
     
-
-
-  if (client->connected && !client->receivedWorld && client->isReady)
+    /*if (client->connected && !client->receivedWorld && client->isReady)
     {
         // request world  
         GamePacket packet = {}; 
@@ -171,7 +199,7 @@ void ClientUpdate() {
 
         PushBack(&network->packetsToSend, packet);
 
-    }
+    }*/
 
 
 
@@ -246,55 +274,111 @@ void ServerUpdate() {
     
     ServerData *server = &GameData->serverData; 
 
-    server->clients = (ClientInfo*)malloc(1 * sizeof(ClientInfo));
     
+    Print("packets received %u", network->packetsReceived.count);
+        // GET AND REGISTER CLIENTS
     for (int i = 0; i < network->packetsReceived.count; i++) {
-        ReceivedPacket *r = &network->packetsReceived[i];
-        GamePacket *p = &r->packet;
+        ReceivedPacket received = network->packetsReceived[i];       
+        GamePacket *p = &received.packet;
 
-        // Remember, the first 4 bytes of our packet tell have the id,
-        // so if our packet doesnt have those same bytes set then this
-        // is a message someone sent to our server, but it wasnt sent
-        // from our game.
-        if (p->id != PacketID) {
-            continue;
-        }
 
-        ClientInfo *foundClient = NULL;
-        
-        for (int j = 0; j < 2; j++) {
-            ClientInfo *client = &server->clients[j];
+        Print("receiver");
 
-            // First check to see if we already have a connection,
-            // if we don't then we'll check to see if we should create one,
-            // otherwise it's just the case that this packet isnt coming from this client.
-            if (r->fromAddress == client->address && r->fromPort == client->port) {
-                foundClient = client;
-                break;
-            }
-            else if (client->address == 0) {
-                client->address = r->fromAddress;
-                client->port = r->fromPort;
+        Print("packets received %d", received.fromAddress);
 
-                foundClient = client;
+        ClientInfo *user = NULL;
+
+        for (int j = 0; j < server->clients.count; j++)
+        {
+            ClientInfo *u = &server->clients[j];
+            if (received.fromAddress == u->address)
+            {
+                user = u;
                 break;
             }
         }
 
-        if (foundClient == NULL) {
-            continue;
+
+        if (received.packet.type == GamePacketType_Ping)
+        {
+            if (user != NULL)
+            {
+                user->lastPingTimeFromServer = Game->time;
+            }
+            else {
+                ClientInfo user1 = {};
+                user1.address = received.fromAddress;
+                user1.port = received.fromPort;
+
+                user1.lastPingTimeFromServer = Game->time;
+                Print("added already!");
+                PushBack(&server->clients, user1);
+            }
         }
 
-        // This is the time that THEY sent the ping, not when we received it.
-        // If this seems strange to you make sure you look up pointer dereferencing
-        // and pointer arithmetic. Remember, our data is just an array of bytes.
-        // Since we know we're only sending pings we can just assume the first
-        // 4 bytes of the data are the time (look at ClientUpdate()).
-        foundClient->lastPingTime = *((real32 *)p->data);
     }
+        /*// Print("Hitting :Packet ");
+
+        // if (p->id != PacketID) {
+        //     continue;
+        // }
+
+        // ClientInfo *foundClient = NULL;
+        
+        // for (int j = 0; j < server->clients.count; j++) 
+        // {
+        //     ClientInfo *client = &server->clients[j];
+
+        //     if (received.fromAddress == client->address && received.fromPort == client->port) // Have we already connected ??
+        //     {
+        //         foundClient = client;
+        //         break;
+        //     }
+        //     else if (client->address == 0) // if we havent already connected, lets
+        //     {
+        //         client->address = received.fromAddress;
+        //         client->port = received.fromPort;
+
+        //         foundClient = client;
+        //         break;
+        //     }
+
+           
+
+        // }
+
+         
+
+        // if (p->type == GamePacketType_Ping)
+        // {
+        //     Print("Hitting Ping ");
+
+        //     if (foundClient != NULL) // DO WE HAVE THAT CLIENT REGISTERED?
+        //     {
+        //         foundClient->lastPingTimeFromServer = *((real32 *)p->data);
+        //     }
+        //     else // LET'S REGISTER THAT CLIENT
+        //     {
+        //         ClientInfo foundClient = {};
+        //         foundClient.address = received.fromAddress;
+        //         foundClient.lastPingTimeFromServer = *((real32 *)p->data);
+
+        //         PushBack(&server->clients, foundClient);
+        //     }
+        // }
 
 
-    if (server->clients[0].address != 0) {
+
+
+        // if (foundClient == NULL) {
+        //     continue;
+        // } */
+
+
+
+
+ // 1 PING PACKET - SEND
+
         GamePacket packet = {};
         packet.id = PacketID;
         packet.type = GamePacketType_Ping;
@@ -307,7 +391,17 @@ void ServerUpdate() {
         // that we have a buffer to accumulate multiple packets and then send
         // over in one pass.
         PushBack(&network->packetsToSend, packet);
+
+        // 2 CHECK FOR NEED TO SEND WORLD
+        
     
+        
+
+
+
+
+
+        Print("ping");
 
         // Here we send the packets where we want to.
         // @NOTE: our server is very simple: it assumes only one client,
@@ -315,19 +409,35 @@ void ServerUpdate() {
         // all of them, or maybe only send some data to some of them,
         // in which case we might want something more sophisticated than just
         // one buffer of GamePackets
+
+        //Print("Count: ", server->clients.count);
         for (int i = 0; i < network->packetsToSend.count; i++) {
             GamePacket *p = &network->packetsToSend[i];
 
-            for (int j = 0; j < 2; j++) {
+            Print("bbb");
+
+            for (int j = 0; j < server->clients.count; j++) {
+                Print("n");
                 ClientInfo *client = &server->clients[j];
+
                 uint32 bytesSent = SendPacket(&network->socket, client->address, client->port, p, sizeof(GamePacket));
 
                 if (bytesSent != sizeof(GamePacket)) {
                     Print("Failed to send %d bytes, sent %d instead", sizeof(GamePacket), bytesSent);
                 }
-            }
+                else
+                {
+                    Print("sent");
+                }
+             }
         }
-    }
+
+   // if (server->clients[0].address != 0) 
+   // {
+//
+//
+   //    
+   // }
 }
 
 void MyGameUpdate() {
