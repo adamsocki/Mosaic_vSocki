@@ -12,6 +12,8 @@ const int32 PacketID = Hash("CubeNet");
 
 struct Player 
 {
+    int32 objectID;
+
     vec2 position;
     vec2 velocity;
 
@@ -19,8 +21,17 @@ struct Player
 
     Rect rect;
 
+    bool needsWorld;
 };
 
+struct WorldObject
+{
+    int32 objectID;
+
+    vec2 position;
+    vec2 size;
+    vec4 color;
+};
 
 
 
@@ -37,7 +48,13 @@ struct World
     vec2 position;
     vec4 color;
 
-    Rect rect;
+    vec2 spawnPoint;
+
+
+    Rect worldBounds;
+
+    DynamicArray <WorldObject> worldObjects;
+
 };
 
 
@@ -48,6 +65,10 @@ struct ClientInfo {
     uint16 port;
 
     real32 lastPingTimeFromServer;
+
+
+
+    Player* player;
 };
 
 
@@ -57,6 +78,19 @@ struct InputPacket
 
     InputKeyboardDiscrete input;
 };
+
+
+
+
+struct PlayerPacket
+{
+    int32 playerID;
+
+    vec2 position;
+};
+
+
+
 struct ServerData 
 {
     // @NOTE: we could have a buffer of these if we wanted multiple clients.
@@ -79,9 +113,13 @@ struct MyCubeGameData
 {
 
     World gameWorld;
-
+    
 
     ServerData serverData;
+
+
+
+    DynamicArray <Player> players;
 
     PlayerData playerData;
 
@@ -104,13 +142,22 @@ void InitServer()
 
     GameData->serverData.clients = MakeDynamicArray<ClientInfo>(&Game->permanentArena, 128);
     GameData->serverData.inputs = MakeDynamicArray<InputPacket>(&Game->permanentArena, 128);
+    GameData->players = MakeDynamicArray<Player>(&Game->permanentArena, 128);
+    GameData->gameWorld.worldObjects = MakeDynamicArray<WorldObject>(&Game->permanentArena, 128);
+
+
    //GameData->serverData.clients = (ClientInfo*)malloc(numberOfClientsAllowed * sizeof(ClientInfo));
+
+
+    GameData->gameWorld.spawnPoint = V2(0.0f, 0.0f);
+
+
 
     //GameData->serverData.clients
     //GameData.gameWorld.position =  V2(0.4f, 0.5f);
     //GameData.gameWorld.color =     V4(0.3f, 0.4f, 0.4f, 1.0);
-    //GameData.gameWorld.rect.max =  V2( 0.1f,  0.1f);
-    //GameData.gameWorld.rect.min =  V2(-0.1f, -0.1f);
+    //GameData.gameWorld.worldBounds.max =  V2( 10.1f,  10.1f);
+    //GameData.gameWorld.worldBounds.min =  V2(-10.1f, -10.1f);
 
     //memset(GameData->serverData.clients, 0, sizeof(ClientInfo) * 4);
 }
@@ -184,7 +231,9 @@ void ClientUpdate() {
     }
 
     PlayerData *player = &GameData->playerData;
-    {
+    { 
+
+
         GamePacket packet = {};
         packet.id = PacketID;
         packet.type = GamePacketType_Ping;
@@ -197,6 +246,12 @@ void ClientUpdate() {
         // Honestly we could just send the packet directly, but I want to showcase
         // that we have a buffer to accumulate multiple packets and then send
         // over in one pass.
+
+
+
+       
+
+
         PushBack(&network->packetsToSend, packet);
 
     }
@@ -288,6 +343,7 @@ void ClientUpdate() {
     }
 
 
+    DrawRectScreen(V2(400, 500), V2(24.0f, 48.0f), V4(0.5f, 0.5f, 0.5f, 0.5f));
 
     
 
@@ -327,11 +383,15 @@ void ServerUpdate() {
 
         ClientInfo *user = NULL;
         int32 userIndex = 0;
+        Print("User Count: %d !", server->clients.count);
+
+        // THIS STEP IDENTIFIES WHICH USER THE RECEIVED PACKET COMES FROM
         for (int j = 0; j < server->clients.count; j++)
         {
             ClientInfo *u = &server->clients[j];
-            if (received.fromAddress == u->address)
+            if (received.fromAddress == u->address && received.fromPort == u->port)
             {
+
                 user = u;
                 userIndex = j;
                 break;
@@ -343,16 +403,47 @@ void ServerUpdate() {
             if (user != NULL)
             {
                 user->lastPingTimeFromServer = Game->time;
+
+               // Print("User Address: %d !", received.fromAddress);
+              //`s  Print("User Port: %d !", received.fromPort);   
+
+                if (received.packet.data)
+
+                bool _needsWorld;
+                bool* value_ptr = (bool*)(received.packet.data + sizeof(real32));
+
+                //memcpy(&_needsWorld, received.packet.data, sizeof(bool));
+                //memcpy(&_needsWorld, received.packet.data, sizeof(bool));
+
             }
-            else {
+            else 
+            {
                 ClientInfo user = {};
-                user.address = received.fromAddress;
+                user.address = received.fromAddress;    
                 user.port = received.fromPort;
 
+
+
+
+                // Create player
+
+                Player player = {};
+                player.color = V4(RandfRange(0.1f, 1.0f), RandfRange(0.1f, 1.0f), RandfRange(0.1f, 1.0f), 1.0f);
+                player.position = GameData->gameWorld.spawnPoint;
+                player.rect.min = V2(-0.2f, -0.8f);
+                player.rect.min = V2(0.2f, 0.8f);
+
+                user.player = &player;
+
+
+                Print("Hitt");
+                //Print("User Port: %d !", received.fromPort);
                 userIndex = server->clients.count - 1;
                 user.lastPingTimeFromServer = Game->time;
                 PushBack(&server->clients, user);
             }
+
+
         }
 
         if (received.packet.type == GamePacketType_Input)
@@ -370,6 +461,16 @@ void ServerUpdate() {
             if (packet.input == Input_W)
             {
                 Print("Input W Received!");
+
+            }
+            if (packet.input == Input_A)
+            {
+                Print("Input A Received!");
+
+            }
+            if (packet.input == Input_D)
+            {
+                Print("Input D Received!");
 
             }
             PushBack(&server->inputs, packet);
@@ -433,20 +534,20 @@ void ServerUpdate() {
         // } */
 
 
-        for (int i = 0; i < server->inputs.count; i++)
+    for (int i = 0; i < server->inputs.count; i++)
+    {
+        InputPacket input = server->inputs[i];
+
+        Player *player = NULL;
+
+        for (int j = 0; j < server->clients.count; j++)
         {
-            InputPacket input = server->inputs[i];
-
-            Player *player = NULL;
-
-            for (int j = 0; j < server->clients.count; j++)
-            {
-                //if (input.id == server->clients[j])
-            }
+            //if (input.id == server->clients[j])
         }
+    }
 
  // 1 PING PACKET - SEND
-
+    {
         GamePacket packet = {};
         packet.id = PacketID;
         packet.type = GamePacketType_Ping;
@@ -459,41 +560,61 @@ void ServerUpdate() {
         // that we have a buffer to accumulate multiple packets and then send
         // over in one pass.
         PushBack(&network->packetsToSend, packet);
+    }
 
-        // 2 CHECK FOR NEED TO SEND WORLD
+// 2 Check any Player specific packet sending needs
+    for (int i = 0; i < server->clients.count; i++)
+    {
+        Player *player = server->clients[i].player;
 
-        // Here we send the packets where we want to.
-        // @NOTE: our server is very simple: it assumes only one client,
-        // but if we had multiple clients we might want to send this data to
-        // all of them, or maybe only send some data to some of them,
-        // in which case we might want something more sophisticated than just
-        // one buffer of GamePackets
+        if (player->needsWorld)
+        {
 
-        //Print("Count: ", server->clients.count);
-        for (int i = 0; i < network->packetsToSend.count; i++) {
-            GamePacket *p = &network->packetsToSend[i];
+            for (int j = 0; j < GameData->gameWorld.worldObjects.count; j++)
+            {
+                GamePacket packet = {};
+                packet.id = PacketID;
+                packet.type = GamePacketType_World;
 
+                memcpy((WorldObject*)packet.data, &GameData->gameWorld.worldObjects[j], sizeof(WorldObject));
+                PushBack(&network->packetsToSend, packet);
 
-            for (int j = 0; j < server->clients.count; j++) {
-                ClientInfo *client = &server->clients[j];
+            }
 
-                uint32 bytesSent = SendPacket(&network->socket, client->address, client->port, p, sizeof(GamePacket));
+            
 
-                if (bytesSent != sizeof(GamePacket)) {
-                    Print("Failed to send %d bytes, sent %d instead", sizeof(GamePacket), bytesSent);
-                }
-                else
-                {
-                }
-             }
         }
+    }
 
-   // if (server->clients[0].address != 0) 
-   // {
-//
-//
-   //    
-   // }
+    
+
+    // Here we send the packets where we want to.
+    // @NOTE: our server is very simple: it assumes only one client,
+    // but if we had multiple clients we might want to send this data to
+    // all of them, or maybe only send some data to some of them,
+    // in which case we might want something more sophisticated than just
+    // one buffer of GamePackets
+
+    //Print("Count: ", server->clients.count);
+    for (int i = 0; i < network->packetsToSend.count; i++) {
+        GamePacket *p = &network->packetsToSend[i];
+
+
+        for (int j = 0; j < server->clients.count; j++) {
+            ClientInfo *client = &server->clients[j];
+
+            uint32 bytesSent = SendPacket(&network->socket, client->address, client->port, p, sizeof(GamePacket));
+
+            if (bytesSent != sizeof(GamePacket)) {
+                Print("Failed to send %d bytes, sent %d instead", sizeof(GamePacket), bytesSent);
+            }
+            else
+            {
+            }
+         }
+    }
+
+
 }
 
 void MyGameUpdate() {
