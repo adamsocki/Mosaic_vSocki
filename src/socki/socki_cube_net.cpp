@@ -3,7 +3,8 @@
 // Only machines on my local network are able to communicate
 // with this address.
 // open up command prompt and type ipconfig to find out your machine's local IP address
-const uint32 ServerAddress = MakeAddressIPv4(192, 168, 56, 1);
+const uint32 ServerAddress = MakeAddressIPv4(10, 0, 0, 20);
+//const uint32 ServerAddress = MakeAddressIPv4(192, 168, 56, 1);
 const uint16 ServerPort = 30000;
 
 // @NOTE TO STUDENTS: look up the hash function in the engine!
@@ -243,6 +244,10 @@ void ClientUpdate() {
         // If you dont know what memcpy is, you need to look it up ASAP
         memcpy(packet.data, &Game->time, sizeof(real32));
 
+        memcpy(packet.data + sizeof(real32), false, sizeof(bool));
+
+        
+
         // Honestly we could just send the packet directly, but I want to showcase
         // that we have a buffer to accumulate multiple packets and then send
         // over in one pass.
@@ -407,11 +412,25 @@ void ServerUpdate() {
                // Print("User Address: %d !", received.fromAddress);
               //`s  Print("User Port: %d !", received.fromPort);   
 
-                if (received.packet.data)
+                bool* n = (bool*)(received.packet.data + sizeof(real32));
+                if (n != NULL)
+                {
+                    Print("NeedsWorld isn't Null");
+                    if (&n)
+                    {
 
-                bool _needsWorld;
-                bool* value_ptr = (bool*)(received.packet.data + sizeof(real32));
+                        Print("NeedsWorld is true");
+                    }
+                    else
+                    {
+                        Print("NeedsWorld false");
+                    }
 
+                }
+
+
+                
+               
                 //memcpy(&_needsWorld, received.packet.data, sizeof(bool));
                 //memcpy(&_needsWorld, received.packet.data, sizeof(bool));
 
@@ -476,64 +495,7 @@ void ServerUpdate() {
             PushBack(&server->inputs, packet);
         }
     }
-        /*// Print("Hitting :Packet ");
-
-        // if (p->id != PacketID) {
-        //     continue;
-        // }
-
-        // ClientInfo *foundClient = NULL;
-        
-        // for (int j = 0; j < server->clients.count; j++) 
-        // {
-        //     ClientInfo *client = &server->clients[j];
-
-        //     if (received.fromAddress == client->address && received.fromPort == client->port) // Have we already connected ??
-        //     {
-        //         foundClient = client;
-        //         break;
-        //     }
-        //     else if (client->address == 0) // if we havent already connected, lets
-        //     {
-        //         client->address = received.fromAddress;
-        //         client->port = received.fromPort;
-
-        //         foundClient = client;
-        //         break;
-        //     }
-
-           
-
-        // }
-
-         
-
-        // if (p->type == GamePacketType_Ping)
-        // {
-        //     Print("Hitting Ping ");
-
-        //     if (foundClient != NULL) // DO WE HAVE THAT CLIENT REGISTERED?
-        //     {
-        //         foundClient->lastPingTimeFromServer = *((real32 *)p->data);
-        //     }
-        //     else // LET'S REGISTER THAT CLIENT
-        //     {
-        //         ClientInfo foundClient = {};
-        //         foundClient.address = received.fromAddress;
-        //         foundClient.lastPingTimeFromServer = *((real32 *)p->data);
-
-        //         PushBack(&server->clients, foundClient);
-        //     }
-        // }
-
-
-    
-
-        // if (foundClient == NULL) {
-        //     continue;
-        // } */
-
-
+       
     for (int i = 0; i < server->inputs.count; i++)
     {
         InputPacket input = server->inputs[i];

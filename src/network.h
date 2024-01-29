@@ -23,6 +23,7 @@ enum GamePacketType {
      GamePacketType_Username,
 
      GamePacketType_Pong,
+     GamePacketType_NeedWorld,
 
      GamePacketType_World,
 };
