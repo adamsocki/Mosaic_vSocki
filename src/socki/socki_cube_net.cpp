@@ -3,8 +3,9 @@
 // Only machines on my local network are able to communicate
 // with this address.
 // open up command prompt and type ipconfig to find out your machine's local IP address
-const uint32 ServerAddress = MakeAddressIPv4(10, 0, 0, 20);
-//const uint32 ServerAddress = MakeAddressIPv4(192, 168, 56, 1);
+
+//const uint32 ServerAddress = MakeAddressIPv4(10, 0, 0, 20);
+const uint32 ServerAddress = MakeAddressIPv4(192, 168, 56, 1);
 const uint16 ServerPort = 30000;
 
 // @NOTE TO STUDENTS: look up the hash function in the engine!
@@ -110,6 +111,17 @@ struct PlayerData {
 
 };
 
+struct CriticalPacket 
+{
+    GamePacketType type;
+
+    real32 timeSinceSent;
+    real32 timeToResend;
+
+    GamePacket packet;
+
+};
+
 struct MyCubeGameData
 {
 
@@ -124,6 +136,7 @@ struct MyCubeGameData
 
     PlayerData playerData;
 
+    DynamicArray <CriticalPacket> criticalPackets;
 
 };
 
@@ -135,6 +148,13 @@ struct MyCubeGameData
 MyCubeGameData *GameData = NULL;
 
 bool debugMode = true;
+
+void LostPacketChecker()
+{
+
+}
+
+
 
 void InitServer()
 { 
@@ -161,7 +181,14 @@ void InitServer()
     //GameData.gameWorld.worldBounds.min =  V2(-10.1f, -10.1f);
 
     //memset(GameData->serverData.clients, 0, sizeof(ClientInfo) * 4);
+
+
 }
+
+
+
+
+
 
 void InitClient()
 {
@@ -240,11 +267,11 @@ void ClientUpdate() {
         packet.type = GamePacketType_Ping;
         packet.frame = Game->frame;
 
-
+        
         // If you dont know what memcpy is, you need to look it up ASAP
         memcpy(packet.data, &Game->time, sizeof(real32));
 
-        memcpy(packet.data + sizeof(real32), false, sizeof(bool));
+        //memcpy(packet.data + sizeof(real32), false, sizeof(bool));
 
         
 
@@ -253,8 +280,6 @@ void ClientUpdate() {
         // over in one pass.
 
 
-
-       
 
 
         PushBack(&network->packetsToSend, packet);
@@ -269,8 +294,6 @@ void ClientUpdate() {
         player->isReady = true;
        // packet.data[0] = client->isReady;
     }
-
-
 
 
      {
@@ -396,7 +419,6 @@ void ServerUpdate() {
             ClientInfo *u = &server->clients[j];
             if (received.fromAddress == u->address && received.fromPort == u->port)
             {
-
                 user = u;
                 userIndex = j;
                 break;
@@ -412,21 +434,7 @@ void ServerUpdate() {
                // Print("User Address: %d !", received.fromAddress);
               //`s  Print("User Port: %d !", received.fromPort);   
 
-                bool* n = (bool*)(received.packet.data + sizeof(real32));
-                if (n != NULL)
-                {
-                    Print("NeedsWorld isn't Null");
-                    if (&n)
-                    {
-
-                        Print("NeedsWorld is true");
-                    }
-                    else
-                    {
-                        Print("NeedsWorld false");
-                    }
-
-                }
+                
 
 
                 
@@ -462,6 +470,21 @@ void ServerUpdate() {
                 PushBack(&server->clients, user);
             }
 
+
+        }
+
+        if (received.packet.type == GamePacketType_NeedsWorld)
+        {
+
+            if (user != NULL)
+            {  
+
+               // bool* n = (bool*)(received.packet.data + sizeof(real32));
+                
+                
+                user->player->needsWorld = true;
+                
+            }
 
         }
 
@@ -537,13 +560,18 @@ void ServerUpdate() {
                 GamePacket packet = {};
                 packet.id = PacketID;
                 packet.type = GamePacketType_World;
+                packet.criticalPacket = true;
+
+
+
 
                 memcpy((WorldObject*)packet.data, &GameData->gameWorld.worldObjects[j], sizeof(WorldObject));
                 PushBack(&network->packetsToSend, packet);
 
-            }
 
-            
+                
+
+            }
 
         }
     }
@@ -561,7 +589,6 @@ void ServerUpdate() {
     for (int i = 0; i < network->packetsToSend.count; i++) {
         GamePacket *p = &network->packetsToSend[i];
 
-
         for (int j = 0; j < server->clients.count; j++) {
             ClientInfo *client = &server->clients[j];
 
@@ -572,8 +599,20 @@ void ServerUpdate() {
             }
             else
             {
+
             }
          }
+
+        if (p->criticalPacket)
+        {
+            CriticalPacket c = {};
+            c.packet = *p;
+            c.type = p->type;
+            c.timeSinceSent = 0.0f;
+            c.timeToResend = 4.0f;
+
+            PushBack(&GameData->criticalPackets, c);
+        }
     }
 
 
@@ -589,6 +628,10 @@ void MyGameUpdate() {
 
     // Whether client or server we always want to receive packets.
     ReceivePackets(&network->socket);
+
+    GameData->criticalPackets = MakeDynamicArray<CriticalPacket>(&Game->permanentArena, 128);
+
+
 
     if (IS_SERVER) {
         ServerUpdate();

@@ -23,10 +23,20 @@ enum GamePacketType {
      GamePacketType_Username,
 
      GamePacketType_Pong,
-     GamePacketType_NeedWorld,
+     GamePacketType_NeedsWorld,
 
      GamePacketType_World,
 };
+
+
+enum UniformPacketDataType
+{
+    Uniform_vec2,
+
+    Uniform_WorldObject,
+};
+
+
 
 // @NOTE: this is the specification for the packet that gets sent and received.
 // We do it this way because we cant guarantee the order that packets come in,
@@ -42,7 +52,40 @@ struct GamePacket {
     // Sometimes we want to send over a chunk of data that has multiple parts.
     // The ID tells us which it belongs to, the index tells the receiver how to reconstruct it. 
     int8 partID;
+    int8 partIndex; 
+    int8 partTotal;
+    //int16 totalBytes;
+
+    bool criticalPacket;
+
+    // use memcpy to fill this data
+    u8 data[256];
+};
+
+struct GamePacket_PreSend
+{
+    GamePacket packet;
+    bool criticalPacket;
+     
+    bool isUniformPacketData;
+    UniformPacketDataType packetDataType;
+};
+
+struct GamePacket_M {
+    // This is an ID which we require every packed to send. The server ignores any data it
+    // receives that doesnt begin with this id.
+    int32 id;
+    GamePacketType type;
+    int32 frame;
+
+    // Sometimes we want to send over a chunk of data that has multiple parts.
+    // The ID tells us which it belongs to, the index tells the receiver how to reconstruct it. 
+    int8 partID;
     int8 partIndex;
+
+    int32 dataCount;
+
+    bool criticalPacket;
 
     // use memcpy to fill this data
     u8 data[256];

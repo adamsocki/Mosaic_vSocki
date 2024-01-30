@@ -137,3 +137,10 @@ void ReceivePackets(Socket *socket) {
     }
 }
 
+
+
+
+void PackagePacketData(GamePacket* packet)
+{
+
+}
