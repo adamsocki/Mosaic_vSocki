@@ -201,7 +201,7 @@ void MyGameUpdate() {
     // DynamicArrays are like Lists in C# in case you didnt know.
     // We want to clear everything from the array so we only ever send packets
     // that we created this frame. 
-    DynamicArrayClear(&network->packetsToSend);
+    DynamicArrayClear(&q->packetsToSend);
 
     // Whether client or server we always want to receive packets.
     ReceivePackets(&network->socket);

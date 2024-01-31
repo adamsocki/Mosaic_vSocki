@@ -25,7 +25,9 @@ enum GamePacketType {
      GamePacketType_Pong,
      GamePacketType_NeedsWorld,
 
+     GamePacketType_PlayerInit,
      GamePacketType_PlayerUpdate,
+     GamePacketType_PlayerSpawnRequest,
 
      GamePacketType_World,
 };
