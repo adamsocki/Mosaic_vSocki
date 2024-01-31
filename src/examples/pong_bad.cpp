@@ -105,7 +105,7 @@ void MyInit() {
     Game->myData = malloc(sizeof(Pong));
 
     myData = (Pong *)Game->myData;
-    memset(myData, 0, sizeof(Pong));
+    mem5set(myData, 0, sizeof(Pong));
 
     if (IS_SERVER) {
         InitSocket(&Game->networkInfo.socket, GetMyAddress(), ServerPort, true);    

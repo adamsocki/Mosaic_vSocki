@@ -78,10 +78,7 @@ struct InputPacket
 
     InputKeyboardDiscrete input;
 };
-
-
-
-
+ 
 struct PlayerPacket
 {
     int32 playerID;
@@ -205,8 +202,6 @@ void MyInit()
     //GameData = {};
     //ServerData* server = &GameData.serverData;
     //``sserver->clients = {};
-    
-
 
     // Create sockets that we'll use to communicate.
     Game->myData = malloc(sizeof(MyCubeGameData));
@@ -214,12 +209,13 @@ void MyInit()
     memset(GameData, 0, sizeof(MyCubeGameData));
 
     GameData->gameWorld.worldObjects = MakeDynamicArray<WorldObject>(&Game->permanentArena, 128);
+    GameData->criticalPackets = MakeDynamicArray<CriticalPacket>(&Game->permanentArena, 128);
 
     // This means that this code is being executed by server.exe
     if (IS_SERVER) 
     {
         InitServer();
-
+        Print("Server");
         InitSocket(&network->socket, GetMyAddress(), ServerPort, true);
     }
     else {
@@ -245,7 +241,7 @@ void ClientUpdate() {
         {
             continue;
         }
-        Print("Received: %d", network->packetsReceived.count);
+        //Print("Received: %d", network->packetsReceived.count);
 
         if (p->type == GamePacketType_World)
         {
@@ -281,10 +277,21 @@ void ClientUpdate() {
     
     if (InputPressed(Keyboard, Input_Return))
     {
-        player->isReady = true;
-       // packet.data[0] = client->isReady;
-    }
+        if (!player->isReady)
+        {
+            player->isReady = true;
+            
+            GamePacket packet = {};
+            packet.id = PacketID;
+            packet.type = GamePacketType_NeedsWorld;
+            packet.criticalPacket = true;
 
+            PushBack(&network->packetsToSend, packet);
+
+        }
+       // packet.data[0] = client->isReady;
+
+    }
 
      {
         GamePacket packet = {};
@@ -346,9 +353,6 @@ void ClientUpdate() {
 
 
 
-
-
-
     //RENDER 
 
     if (!player->isReady)
@@ -360,12 +364,12 @@ void ClientUpdate() {
         DrawTextScreen(&Game->serifFont, V2(0.5f, 0.85f), 0.02f, V4(0.8f, 0.1f, 0.2f, 1.0f), true, "World being generated...");
     }
 
-
     DrawRectScreen(V2(400, 500), V2(24.0f, 48.0f), V4(0.5f, 0.5f, 0.5f, 0.5f));
 
     // RENDER WORLD
     for (int i = 0; i < GameData->gameWorld.worldObjects.count; i++)
     {
+        Print("no of world objects: %d", GameData->gameWorld.worldObjects.count);
         WorldObject o = GameData->gameWorld.worldObjects[i];
         DrawRect(o.position, o.size, o.color);
     }
@@ -399,7 +403,7 @@ void ServerUpdate() {
 
         ClientInfo *user = NULL;
         int32 userIndex = 0;
-        Print("User Count: %d !", server->clients.count);
+        //Print("User Count: %d !", server->clients.count);
 
         // THIS STEP IDENTIFIES WHICH USER THE RECEIVED PACKET COMES FROM
         for (int j = 0; j < server->clients.count; j++)
@@ -418,6 +422,7 @@ void ServerUpdate() {
             if (user != NULL)
             {
                 user->lastPingTimeFromServer = Game->time;
+                user->player->needsWorld = false;
             }
             else 
             {
@@ -432,6 +437,7 @@ void ServerUpdate() {
                 player.position = GameData->gameWorld.spawnPoint;
                 player.rect.min = V2(-0.2f, -0.8f);
                 player.rect.min = V2(0.2f, 0.8f);
+                player.needsWorld = false;
 
                 user.player = &player;
 
@@ -440,14 +446,26 @@ void ServerUpdate() {
                 user.lastPingTimeFromServer = Game->time;
                 PushBack(&server->clients, user);
             }
+            
         }
 
         if (received.packet.type == GamePacketType_NeedsWorld)
-        {
+        { 
+            Print("NeedsWorld");
             if (user != NULL)
             {  
-               // bool* n = (bool*)(received.packet.data + sizeof(real32));
-                user->player->needsWorld = true;
+                for (int j = 0; j < GameData->gameWorld.worldObjects.count; j++)
+                {
+                    GamePacket packet = {};
+                    packet.id = PacketID;
+                    packet.type = GamePacketType_World;
+                    packet.criticalPacket = true;
+
+                    memcpy((WorldObject*)packet.data, &GameData->gameWorld.worldObjects[j], sizeof(WorldObject));
+                    PushBack(&network->packetsToSend, packet);
+                }
+                // bool* n = (bool*)(received.packet.data + sizeof(real32));
+               // user->player->needsWorld = true;
             }
         }
 
@@ -456,26 +474,26 @@ void ServerUpdate() {
             InputPacket packet = *(InputPacket*)received.packet.data;
             packet.clientID = userIndex;
 
-            Print("Some Input !");
+           //Print("Some Input !");
 
             if (packet.input == Input_S)
             {
-                Print("Input S Received!");
+                //Print("Input S Received!");
 
             }
             if (packet.input == Input_W)
             {
-                Print("Input W Received!");
+               // Print("Input W Received!");
 
             }
             if (packet.input == Input_A)
             {
-                Print("Input A Received!");
+               // Print("Input A Received!");
 
             }
             if (packet.input == Input_D)
             {
-                Print("Input D Received!");
+               // Print("Input D Received!");
 
             }
             PushBack(&server->inputs, packet);
@@ -513,20 +531,13 @@ void ServerUpdate() {
 // 2 Check any Player specific packet sending needs
     for (int i = 0; i < server->clients.count; i++)
     {
+        Print("player count: %d", server->clients.count);
         Player *player = server->clients[i].player;
         if (player->needsWorld)
         {
-            for (int j = 0; j < GameData->gameWorld.worldObjects.count; j++)
-            {
-                GamePacket packet = {};
-                packet.id = PacketID;
-                packet.type = GamePacketType_World;
-                packet.criticalPacket = true;
-
-                memcpy((WorldObject*)packet.data, &GameData->gameWorld.worldObjects[j], sizeof(WorldObject));
-                PushBack(&network->packetsToSend, packet);
-            }
-        }
+           
+        } 
+        player->needsWorld = false;
     }
 
     // Here we send the packets where we want to.
@@ -546,7 +557,7 @@ void ServerUpdate() {
             uint32 bytesSent = SendPacket(&network->socket, client->address, client->port, p, sizeof(GamePacket));
 
             if (bytesSent != sizeof(GamePacket)) {
-                Print("Failed to send %d bytes, sent %d instead", sizeof(GamePacket), bytesSent);
+                //Print("Failed to send %d bytes, sent %d instead", sizeof(GamePacket), bytesSent);
             }
             else
             {
@@ -579,7 +590,6 @@ void MyGameUpdate() {
     // Whether client or server we always want to receive packets.
     ReceivePackets(&network->socket);
 
-    GameData->criticalPackets = MakeDynamicArray<CriticalPacket>(&Game->permanentArena, 128);
 
 
 
