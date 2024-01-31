@@ -244,6 +244,29 @@ void ClientUpdate() {
             memcpy(&wo, p->data, sizeof(WorldObject));
             PushBack(&GameData->gameWorld.worldObjects, wo);
         }
+
+        if (p->type == GamePacketType_PlayerUpdate)
+        {
+
+            for (int j = 0; j < GameData->players.count; j++)
+            {
+                Player inGamePlayer = GameData->players[j];
+                Player receivedPlayer = {};
+                memcpy(&receivedPlayer, p->data, sizeof(Player));
+
+                if (receivedPlayer.playerID == inGamePlayer.playerID)
+                {
+                    inGamePlayer = receivedPlayer;
+                }
+                else
+                {
+                    PushBack(&GameData->players, receivedPlayer);
+                }
+
+
+            }
+           
+        }
         
     }
 
@@ -449,6 +472,9 @@ void ServerUpdate() {
                 user.lastPingTimeFromServer = Game->time;
                 PushBack(&server->clients, user);
                 PushBack(&GameData->players, player);
+
+
+
             }
         }
 
@@ -476,6 +502,7 @@ void ServerUpdate() {
         {
             InputPacket packet = *(InputPacket*)received.packet.data;
             packet.clientID = userIndex;
+
 
            //Print("Some Input !");
 
@@ -514,7 +541,11 @@ void ServerUpdate() {
             //if (input.id == server->clients[j])
 
             player = server->clients[j].player;
-            bool sendUpdate = false;
+            bool sendUpdate = true;
+
+            
+
+
             if (inputPacket.input == Input_S)
             {
                 //Print("Input S Received!");
