@@ -15,6 +15,7 @@ const int32 PacketID = Hash("CubeNet");
 struct Player 
 {
     int32 objectID;
+    int32 playerID;
 
     vec2 position;
     vec2 velocity;
@@ -22,8 +23,10 @@ struct Player
     vec4 color; 
 
     Rect rect;
+    vec2 size;
 
     bool needsWorld;
+    bool sendUpdatePacket;
 };
 
 struct WorldObject
@@ -156,11 +159,7 @@ void InitServer()
     GameData->serverData.clients = MakeDynamicArray<ClientInfo>(&Game->permanentArena, 128);
     GameData->serverData.inputs = MakeDynamicArray<InputPacket>(&Game->permanentArena, 128);
     GameData->players = MakeDynamicArray<Player>(&Game->permanentArena, 128);
-
-
    //GameData->serverData.clients = (ClientInfo*)malloc(numberOfClientsAllowed * sizeof(ClientInfo));
-
-
     GameData->gameWorld.spawnPoint = V2(0.0f, 0.0f);
     
 
@@ -199,10 +198,6 @@ void MyInit()
     //memset(GameData, 0, sizeof(MyCubeGameData) * 1);
 
 
-    //GameData = {};
-    //ServerData* server = &GameData.serverData;
-    //``sserver->clients = {};
-
     // Create sockets that we'll use to communicate.
     Game->myData = malloc(sizeof(MyCubeGameData));
     GameData = (MyCubeGameData*)Game->myData;
@@ -210,6 +205,7 @@ void MyInit()
 
     GameData->gameWorld.worldObjects = MakeDynamicArray<WorldObject>(&Game->permanentArena, 128);
     GameData->criticalPackets = MakeDynamicArray<CriticalPacket>(&Game->permanentArena, 128);
+    GameData->players = MakeDynamicArray<Player>(&Game->permanentArena, 128);
 
     // This means that this code is being executed by server.exe
     if (IS_SERVER) 
@@ -219,9 +215,6 @@ void MyInit()
         InitSocket(&network->socket, GetMyAddress(), ServerPort, true);
     }
     else {
-        // If we don't care what port we're on we can pass in 0 and it'll pick one
-        // for us. This can be useful for doing networking locally where we want
-        // to have multiple game instances open and have the server communicate with each.
         InitClient();
         InitSocket(&network->socket, GetMyAddress(), 0, true);
     }
@@ -285,6 +278,7 @@ void ClientUpdate() {
             packet.id = PacketID;
             packet.type = GamePacketType_NeedsWorld;
             packet.criticalPacket = true;
+            
 
             PushBack(&network->packetsToSend, packet);
 
@@ -369,9 +363,18 @@ void ClientUpdate() {
     // RENDER WORLD
     for (int i = 0; i < GameData->gameWorld.worldObjects.count; i++)
     {
-        Print("no of world objects: %d", GameData->gameWorld.worldObjects.count);
         WorldObject o = GameData->gameWorld.worldObjects[i];
         DrawRect(o.position, o.size, o.color);
+    }
+
+    // RENDER PLAYERS
+    for (int i = 0; i < GameData->players.count; i++)
+    {
+        Print("no of players : %d", GameData->gameWorld.worldObjects.count);
+
+
+        Player p = GameData->players[i];
+        DrawRect(p.position, p.size, p.color);
     }
     
 
@@ -445,8 +448,8 @@ void ServerUpdate() {
                 userIndex = server->clients.count - 1;
                 user.lastPingTimeFromServer = Game->time;
                 PushBack(&server->clients, user);
+                PushBack(&GameData->players, player);
             }
-            
         }
 
         if (received.packet.type == GamePacketType_NeedsWorld)
@@ -502,13 +505,55 @@ void ServerUpdate() {
        
     for (int i = 0; i < server->inputs.count; i++)
     {
-        InputPacket input = server->inputs[i];
+        InputPacket inputPacket = server->inputs[i];
 
         Player *player = NULL;
 
         for (int j = 0; j < server->clients.count; j++)
         {
             //if (input.id == server->clients[j])
+
+            player = server->clients[j].player;
+            bool sendUpdate = false;
+            if (inputPacket.input == Input_S)
+            {
+                //Print("Input S Received!");
+                player->position.y -= 1 * (Game->deltaTime);
+                sendUpdate = true;
+            }
+            else if (inputPacket.input == Input_W)
+            {
+                // Print("Input W Received!");
+                player->position.y += 1 * (Game->deltaTime);
+                sendUpdate = true;
+
+
+            }
+            else if (inputPacket.input == Input_A)
+            {
+                // Print("Input A Received!");
+                player->position.x -= 1 * (Game->deltaTime);
+                sendUpdate = true;
+
+            }
+            else if (inputPacket.input == Input_D)
+            {
+                // Print("Input D Received!");
+                player->position.x += 1 * (Game->deltaTime);
+                sendUpdate = true;
+
+            }
+
+            if (sendUpdate)
+            {
+                GamePacket packet = {};
+                packet.id = PacketID;
+                packet.type = GamePacketType_PlayerUpdate;
+                memcpy(packet.data, &player->playerID, sizeof(int32));
+                memcpy(packet.data + sizeof(int32), &player->position, sizeof(vec2));
+                PushBack(&network->packetsToSend, packet);
+            }
+
         }
     }
 
@@ -533,19 +578,17 @@ void ServerUpdate() {
     {
         Print("player count: %d", server->clients.count);
         Player *player = server->clients[i].player;
-        if (player->needsWorld)
+        
+        if (player->sendUpdatePacket)
         {
-           
-        } 
-        player->needsWorld = false;
-    }
 
-    // Here we send the packets where we want to.
-    // @NOTE: our server is very simple: it assumes only one client,
-    // but if we had multiple clients we might want to send this data to
-    // all of them, or maybe only send some data to some of them,
-    // in which case we might want something more sophisticated than just
-    // one buffer of GamePackets
+            GamePacket p = {};
+            p.type = GamePacketType_PlayerUpdate;
+            p.id = PacketID;
+            
+        }
+
+    }
 
     //Print("Count: ", server->clients.count);
     for (int i = 0; i < network->packetsToSend.count; i++) {
