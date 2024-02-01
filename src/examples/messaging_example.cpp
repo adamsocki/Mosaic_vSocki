@@ -187,7 +187,7 @@ void ClientUpdate() {
         else {
             GamePacket packet = {};
             packet.type = GamePacketType_Username;
-            memcpy(packet.data, myData.message, strlen(myData.message));
+            =(packet.data, myData.message, strlen(myData.message));
 
             PushBack(&network->packetsToSend, packet);
 

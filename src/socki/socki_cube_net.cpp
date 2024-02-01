@@ -232,6 +232,7 @@ void ClientUpdate() {
     {
         ReceivedPacket *received = &network->packetsReceived[i];
         GamePacket* p = &received->packet;
+        GamePacket p2 = received->packet;
 
         if (received->packet.id != PacketID)
         {
@@ -262,18 +263,20 @@ void ClientUpdate() {
 
             for (int j = 0; j < GameData->players.count; j++)
             {
-                Player inGamePlayer = GameData->players[j];
+                Player* inGamePlayer = &GameData->players[j];
                 Player receivedPlayer = {};
 
                 int32 receivedPlayerID = {};
 
-                memcpy(&receivedPlayerID, p->data + sizeof(int32) + sizeof(vec2), sizeof(int32));
+                memcpy(&receivedPlayerID, p->data, sizeof(int32));
 
+                memcpy(&inGamePlayer->position, p2.data + sizeof(int32), sizeof(vec2));
+                memcpy(&inGamePlayer->isActive, p->data + sizeof(int32) + sizeof(vec2), sizeof(bool));
 
-                if (inGamePlayer.playerID == receivedPlayerID)
+               //    if (&inGamePlayer.playerID == receivedPlayerID || true)
                 {
-                    memcpy(&inGamePlayer.playerID, p->data, sizeof(int32));
-                    memcpy(&inGamePlayer.position, p->data + sizeof(int32), sizeof(vec2));
+                   // memcpy(&inGamePlayer.playerID, p->data, sizeof(int32));
+                   
                 }
 
 
@@ -423,9 +426,9 @@ void ClientUpdate() {
     {
         Player p = GameData->players[i];
 
-        if (p.isActive)
+        if (true)
         {
-            Print("no of players : %d", GameData->gameWorld.worldObjects.count);
+            Print("no of worldObj : %d", GameData->gameWorld.worldObjects.count);
 
 
             DrawRect(p.position, p.size, p.color);
@@ -494,15 +497,15 @@ void ServerUpdate() {
                 Player player = {};
                 player.color = V4(RandfRange(0.1f, 1.0f), RandfRange(0.1f, 1.0f), RandfRange(0.1f, 1.0f), 1.0f);
                 player.position = GameData->gameWorld.spawnPoint;
+                player.playerID = userIndex = server->clients.count - 1;
 
                 player.needsWorld = false;
                 player.size = V2(0.4f, 0.4f);
-                player.isActive = false;
+                player.isActive = true;
 
                 user.player = &player;
 
                 //Print("User Port: %d !", received.fromPort);
-                userIndex = server->clients.count - 1;
                 user.lastPingTimeFromServer = Game->time;
                 PushBack(&server->clients, user);
                 PushBack(&GameData->players, player);
@@ -513,8 +516,6 @@ void ServerUpdate() {
                 
                 memcpy(&packet.data, &player, sizeof(Player));
                 PushBack(&network->packetsToSend, packet);
-
-
 
             }
         }
@@ -601,35 +602,35 @@ void ServerUpdate() {
             //if (input.id == server->clients[j])
 
             player = server->clients[j].player;
-            bool sendUpdate = true;
+            bool sendUpdate = false;
 
-            if (player->isActive)
+            if (true)
             {
                 if (inputPacket.input == Input_S)
                 {
-                    //Print("Input S Received!");
-                    player->position.y -= 1 * (Game->deltaTime);
+                    Print("Input S Received!");
+                    player->position.y -= 7 * (Game->deltaTime);
                     sendUpdate = true;
                 }
                 else if (inputPacket.input == Input_W)
                 {
-                    // Print("Input W Received!");
-                    player->position.y += 1 * (Game->deltaTime);
+                    Print("Input W Received!");
+                    player->position.y += 2 * (Game->deltaTime);
                     sendUpdate = true;
 
 
                 }
                 else if (inputPacket.input == Input_A)
                 {
-                    // Print("Input A Received!");
-                    player->position.x -= 1 * (Game->deltaTime);
+                    Print("Input A Received!");
+                    player->position.x -= 2 * (Game->deltaTime);
                     sendUpdate = true;
 
                 }
                 else if (inputPacket.input == Input_D)
                 {
-                    // Print("Input D Received!");
-                    player->position.x += 1 * (Game->deltaTime);
+                    Print("Input D Received!");
+                    player->position.x += 2 * (Game->deltaTime);
                     sendUpdate = true;
 
                 }
@@ -645,12 +646,13 @@ void ServerUpdate() {
                     packet.type = GamePacketType_PlayerUpdate;
                     memcpy(packet.data, &player->playerID, sizeof(int32));
                     memcpy(packet.data + sizeof(int32), &player->position, sizeof(vec2));
+                    memcpy(packet.data + sizeof(int32) + sizeof(vec2), &player->isActive, sizeof(bool));
                     PushBack(&network->packetsToSend, packet);
                 }
 
             }
            
-
+            DynamicArrayClear(&server->inputs);
         }
     }
 
