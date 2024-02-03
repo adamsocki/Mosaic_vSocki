@@ -270,8 +270,15 @@ void ClientUpdate() {
 
                 memcpy(&receivedPlayerID, p->data, sizeof(int32));
 
-                memcpy(&inGamePlayer->position, p2.data + sizeof(int32), sizeof(vec2));
+                //ingamePlayer->position += receivedPlayer.
+                vec2 positionDelta = {};
+                
+
+                memcpy(&positionDelta, p->data + sizeof(int32), sizeof(vec2));
                 memcpy(&inGamePlayer->isActive, p->data + sizeof(int32) + sizeof(vec2), sizeof(bool));
+
+                inGamePlayer->position.x += positionDelta.x;
+                inGamePlayer->position.y += positionDelta.y;
 
                //    if (&inGamePlayer.playerID == receivedPlayerID || true)
                 {
