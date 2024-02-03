@@ -356,6 +356,12 @@ void ClientUpdate() {
         if (InputHeld(Keyboard, Input_S)) {
             ((InputPacket *)packet.data)->input = Input_S;
         }
+        if (InputHeld(Keyboard, Input_A)) {
+            ((InputPacket*)packet.data)->input = Input_A;
+        }
+        if (InputHeld(Keyboard, Input_D)) {
+            ((InputPacket*)packet.data)->input = Input_D;
+        }
 
         PushBack(&network->packetsToSend, packet);
     }
